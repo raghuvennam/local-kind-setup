@@ -16,7 +16,7 @@ ISTIO_INSTALLER=installers/istio
 
 install: test_variables .kind_install .istio_install
 
-cleanup: .kind_cleanup .sonarqube_cleanup
+cleanup: .kind_cleanup
 
 .kind_install:
 	$(MAKE) -C ${KIND_INSTALLER} install
