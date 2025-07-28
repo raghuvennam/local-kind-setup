@@ -1,0 +1,58 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: api-gateway
+  namespace: istio-ingress
+  labels:
+    gateway: api-gateway
+spec:
+  selector:
+    app: istio-ingressgateway
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - api.internal
+    port:
+      name: http
+      number: 80
+      protocol: HTTP
+    tls:
+      mode: PASSTHROUGH
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: web-gateway
+  namespace: istio-ingress
+  labels:
+    gateway: web-gateway
+spec:
+  selector:
+    app: istio-ingressgateway
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - web.internal
+    port:
+      name: http
+      number: 80
+      protocol: HTTP
+    tls:
+      mode: PASSTHROUGH
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-gateway-ingress
+  namespace: istio-ingress
+spec:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        ipBlocks:
+        - 0.0.0.0/0
+  selector:
+    matchLabels:
+      app: istio-ingressgateway
+      istio: ingressgateway

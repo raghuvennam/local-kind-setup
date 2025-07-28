@@ -1,0 +1,33 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+spec:
+  profile: default
+  meshConfig:
+    accessLogFile: /dev/stdout
+    defaultConfig:
+      holdApplicationUntilProxyStarts: true
+      terminationDrainDuration: 30s
+  components:
+    ingressGateways:
+    - name: istio-ingressgateway
+      namespace: istio-ingress
+      enabled: true
+      label:
+        istio: ingressgateway
+      k8s:
+        # patch ingress gateway deployment to enable kind ingress config
+        overlays:
+        - kind: Deployment
+          name: istio-ingressgateway
+          patches:
+            - path: spec.template.spec.containers.[name:istio-proxy].ports.[containerPort:8080].hostPort
+              value: 80
+            - path: spec.template.spec.containers.[name:istio-proxy].ports.[containerPort:8443].hostPort
+              value: 443
+        # update the service from default loadbalancer to clusterip
+        service:
+          type: ClusterIP
+  values:
+    gateways:
+      istio-ingressgateway:
+        injectionTemplate: gateway
