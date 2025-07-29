@@ -23,21 +23,50 @@ kubectl create namespace istio-ingress || true
 istioctl install -f ../meshConfig.yaml --skip-confirmation
 sleep 5
 
-# Install kiali
-kubectl apply -f ${ISTIO_FOLDER}/samples/addons/kiali.yaml
-
 # Install prometheus
+# Config to move prometheus to /prometheus subpath, but that fails with kiali so we will not use it for now #
+cp ${ISTIO_FOLDER}/samples/addons/prometheus.yaml ${ISTIO_FOLDER}/samples/addons/prometheus.yaml.bak
+yq -i '(. | select(.kind == "Deployment") | .spec.template.spec.containers[]| select(.name == "prometheus-server"))|= (.args = (((.args // []) + ["--web.external-url=https://admin.internal/prometheus","--web.route-prefix=/prometheus"]) | unique)) ' ${ISTIO_FOLDER}/samples/addons/prometheus.yaml
+# Update the health check path to match the new route prefix
+sed -i -e 's|/-/ready|/prometheus/-/ready|g' -e 's|/-/healthy|/prometheus/-/healthy|g' ${ISTIO_FOLDER}/samples/addons/prometheus.yaml
+# Apply the modified prometheus config
 kubectl apply -f ${ISTIO_FOLDER}/samples/addons/prometheus.yaml
 
 # Install grafana
 cp ${ISTIO_FOLDER}/samples/addons/grafana.yaml ${ISTIO_FOLDER}/samples/addons/grafana.yaml.bak
 # Patch only the Deployment, not all resources
 # Add GF_SERVER_ROOT_URL and GF_SERVER_SERVE_FROM_SUB_PATH for subpath support
-GRAFANA_ENV_PATCH='[{"name": "GF_SERVER_ROOT_URL", "value": "https://admin.internal/grafana/"}, {"name": "GF_SERVER_SERVE_FROM_SUB_PATH", "value": "true"}]'
-yq e 'select(.kind == "Deployment") | (.spec.template.spec.containers[] | select(.name == "grafana") .env) |= (. // []) + env(GRAFANA_ENV_PATCH)' ${ISTIO_FOLDER}/samples/addons/grafana.yaml.bak > ${ISTIO_FOLDER}/samples/addons/grafana.yaml
-# Append all non-Deployment resources unchanged
-yq e 'select(.kind != "Deployment")' ${ISTIO_FOLDER}/samples/addons/grafana.yaml.bak >> ${ISTIO_FOLDER}/samples/addons/grafana.yaml
+yq -i '(. | select(.kind == "Deployment") | .spec.template.spec.containers[] | select(.name == "grafana") | .env) |= ((. // []) + [{"name":"GF_SERVER_ROOT_URL","value":"https://admin.internal/grafana/"},{"name":"GF_SERVER_SERVE_FROM_SUB_PATH","value":"true"}])' ${ISTIO_FOLDER}/samples/addons/grafana.yaml
+# Apply the modified grafana config
 kubectl apply -f ${ISTIO_FOLDER}/samples/addons/grafana.yaml
+
+# Install kiali
+# Patch Kiali ConfigMap to set subpath URLs for Prometheus and Grafana
+kubectl apply -f ${ISTIO_FOLDER}/samples/addons/kiali.yaml
+
+# Set the URLs you want
+export PROM_URL="http://prometheus.istio-system:9090/prometheus/"
+export GRAFANA_INT_URL="http://grafana.istio-system:3000/grafana/"
+export GRAFANA_EXT_URL="https://admin.internal/grafana/"
+
+# Apply the new configuration to the Kiali ConfigMap
+kubectl -n istio-system get cm kiali -o json \
+| yq -o=yaml '
+  .data = ( .data // {} )
+  | .data["config.yaml"] = ( .data["config.yaml"] // "{}" )
+  | (.data["config.yaml"] | from_yaml) as $config
+  | $config.external_services = ($config.external_services // {})
+  | $config.external_services.prometheus = ($config.external_services.prometheus // {})
+  | $config.external_services.grafana = ($config.external_services.grafana // {})
+  | $config.external_services.prometheus.url = env(PROM_URL)
+  | $config.external_services.grafana.internal_url = env(GRAFANA_INT_URL)
+  | $config.external_services.grafana.external_url = env(GRAFANA_EXT_URL)
+  | .data["config.yaml"] = ($config | to_yaml)
+' \
+| kubectl apply -f -
+
+# Delete Kiali to apply the new config
+kubectl -n istio-system delete pod -l app.kubernetes.io/name=kiali
 
 # Validate all pods are running in istio-system
 kubectl wait -n istio-system --for=condition=ready pod --field-selector=status.phase!=Succeeded --timeout=5m

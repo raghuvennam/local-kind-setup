@@ -6,5 +6,5 @@ resources:
   - sidecar.yaml
   - default-auth-policy.yaml
   - local-gateways.yaml
-  - admin-virtual-services.yaml  
+  - admin-apps-config.yaml
   - ../app-config
