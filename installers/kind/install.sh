@@ -58,14 +58,8 @@ EOF
 
   # start local docker-registry-proxy
   if [ "$(docker inspect -f '{{.State.Running}}' docker_registry_proxy 2>/dev/null || true)" != 'true' ]; then
-    docker run -d --restart=always --name docker_registry_proxy \
-      --net kind --hostname docker-registry-proxy \
-      -p 0.0.0.0:3128:3128 \
-      -e ENABLE_MANIFEST_CACHE=true \
-      -v $(pwd)/docker_mirror_cache:/docker_mirror_cache \
-      -v $(pwd)/docker_mirror_certs:/ca \
-      rpardini/docker-registry-proxy:0.6.5
-      sleep 5 # wait for the proxy to start
+    docker compose -f docker-registry-proxy.yaml up -d
+    sleep 5 # wait for the proxy to start
   fi
 
   SETUP_URL=http://docker-registry-proxy:3128/setup/systemd
@@ -93,36 +87,9 @@ helm repo add kubernetes-dashboard https://kubernetes.github.io/dashboard/
 # Deploy a Helm Release named "kubernetes-dashboard" using the kubernetes-dashboard chart
 helm upgrade --install kubernetes-dashboard kubernetes-dashboard/kubernetes-dashboard --create-namespace --namespace kubernetes-dashboard
 
-# create a service account and secret for logging into dashboard
-cat <<EOF | kubectl apply -f -
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: admin-user
-  namespace: kubernetes-dashboard
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: admin-user
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: cluster-admin
-subjects:
-- kind: ServiceAccount
-  name: admin-user
-  namespace: kubernetes-dashboard
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: admin-user
-  namespace: kubernetes-dashboard
-  annotations:
-    kubernetes.io/service-account.name: "admin-user"
-type: kubernetes.io/service-account-token
-EOF
+# Create a service account and cluster role binding for admin user
+kubectl apply -k .
+
 # retrieve the token for the admin-user
 echo -e "\nStore below token to login to dashboard\n"
 kubectl get secret admin-user -n kubernetes-dashboard -o jsonpath="{.data.token}" | base64 -d

@@ -1,6 +1,35 @@
 apiVersion: networking.istio.io/v1beta1
 kind: Gateway
 metadata:
+  name: admin-gateway
+  namespace: istio-ingress
+  labels:
+    gateway: admin-gateway
+spec:
+  selector:
+    app: istio-ingressgateway
+    istio: ingressgateway
+  servers:
+  - hosts:
+    - admin.internal
+    port:
+      name: http
+      number: 80
+      protocol: HTTP
+  - hosts:
+    - admin.internal
+    port:
+      name: https
+      number: 443
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: internal-cert
+      minProtocolVersion: TLSV1_2
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
   name: api-gateway
   namespace: istio-ingress
   labels:
@@ -16,8 +45,16 @@ spec:
       name: http
       number: 80
       protocol: HTTP
+  - hosts:
+    - api.internal
+    port:
+      name: https
+      number: 443
+      protocol: HTTPS
     tls:
-      mode: PASSTHROUGH
+      mode: SIMPLE
+      credentialName: internal-cert
+      minProtocolVersion: TLSV1_2
 ---
 apiVersion: networking.istio.io/v1beta1
 kind: Gateway
@@ -37,8 +74,16 @@ spec:
       name: http
       number: 80
       protocol: HTTP
+  - hosts:
+    - web.internal
+    port:
+      name: https
+      number: 443
+      protocol: HTTPS
     tls:
-      mode: PASSTHROUGH
+      mode: SIMPLE
+      credentialName: internal-cert
+      minProtocolVersion: TLSV1_2
 ---
 apiVersion: security.istio.io/v1beta1
 kind: AuthorizationPolicy

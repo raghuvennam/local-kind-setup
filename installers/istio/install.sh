@@ -30,12 +30,56 @@ kubectl apply -f ${ISTIO_FOLDER}/samples/addons/kiali.yaml
 kubectl apply -f ${ISTIO_FOLDER}/samples/addons/prometheus.yaml
 
 # Install grafana
+cp ${ISTIO_FOLDER}/samples/addons/grafana.yaml ${ISTIO_FOLDER}/samples/addons/grafana.yaml.bak
+# Patch only the Deployment, not all resources
+# Add GF_SERVER_ROOT_URL and GF_SERVER_SERVE_FROM_SUB_PATH for subpath support
+GRAFANA_ENV_PATCH='[{"name": "GF_SERVER_ROOT_URL", "value": "https://admin.internal/grafana/"}, {"name": "GF_SERVER_SERVE_FROM_SUB_PATH", "value": "true"}]'
+yq e 'select(.kind == "Deployment") | (.spec.template.spec.containers[] | select(.name == "grafana") .env) |= (. // []) + env(GRAFANA_ENV_PATCH)' ${ISTIO_FOLDER}/samples/addons/grafana.yaml.bak > ${ISTIO_FOLDER}/samples/addons/grafana.yaml
+# Append all non-Deployment resources unchanged
+yq e 'select(.kind != "Deployment")' ${ISTIO_FOLDER}/samples/addons/grafana.yaml.bak >> ${ISTIO_FOLDER}/samples/addons/grafana.yaml
 kubectl apply -f ${ISTIO_FOLDER}/samples/addons/grafana.yaml
 
 # Validate all pods are running in istio-system
 kubectl wait -n istio-system --for=condition=ready pod --field-selector=status.phase!=Succeeded --timeout=5m
 
-# enable additional istio config and create application namespaces
+# Generate self-signed certs for admin.internal, web.internal, api.internal as SANs
+CERT_DIR=../certs
+mkdir -p $CERT_DIR
+cat > $CERT_DIR/istio-ingress.cnf <<EOF
+[req]
+default_bits = 2048
+distinguished_name = req_distinguished_name
+req_extensions = req_ext
+x509_extensions = v3_req
+prompt = no
+
+[req_distinguished_name]
+CN = admin.internal
+
+[req_ext]
+subjectAltName = @alt_names
+
+[v3_req]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = admin.internal
+DNS.2 = web.internal
+DNS.3 = api.internal
+EOF
+
+openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+    -config $CERT_DIR/istio-ingress.cnf \
+    -extensions v3_req \
+    -keyout $CERT_DIR/internal.key \
+    -out $CERT_DIR/internal.crt
+
+# Create Kubernetes TLS secret for Istio Gateway
+kubectl create -n istio-ingress secret tls internal-cert \
+    --key $CERT_DIR/internal.key \
+    --cert $CERT_DIR/internal.crt --dry-run=client -o yaml | kubectl apply -f -
+
+# Apply additional istio config and create application namespaces
 cd ../
 kubectl apply -k .
 
