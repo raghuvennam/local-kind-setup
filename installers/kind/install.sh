@@ -94,6 +94,7 @@ kubectl apply -k .
 echo -e "\nStore below token to login to dashboard\n"
 kubectl get secret admin-user -n kubernetes-dashboard -o jsonpath="{.data.token}" | base64 -d
 echo -e "\n\n"
+echo -e "Validating for pods ready status, this might take couple of minutes ...\n\n"
 kubectl wait -n kubernetes-dashboard --for=condition=ready pod --field-selector=status.phase!=Succeeded --timeout=3m
 
 # show duration

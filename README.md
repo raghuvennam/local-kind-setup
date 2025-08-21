@@ -14,7 +14,11 @@ Below are pre-requisites needed for MacBook
 
 ```sh
 # remove any components already install from list below
-brew install make kind stern skaffold kubernetes-cli kubectx helm
+brew install make kind stern skaffold kubernetes-cli kubectx helm yq gnu-sed
+
+# Update the gnu-sed in the .zshrc file and open a new terminal to proceed
+echo 'export PATH="/opt/homebrew/opt/gnu-sed/libexec/gnubin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
 
 # (optional) disable skaffold metric collection
 skaffold config set --global collect-metrics false
@@ -77,7 +81,7 @@ kubectx kind-local
 # edit the hosts file and add the below entry
 sudo vi /etc/hosts
 
-127.0.0.1 kind-registry api.internal web.internal
+127.0.0.1 admin.internal web.internal api.internal
 ```
 
 To access the kubernetes dashboard
