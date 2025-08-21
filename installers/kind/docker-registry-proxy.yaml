@@ -1,0 +1,22 @@
+services:
+  docker_registry_proxy:
+    container_name: docker_registry_proxy
+    hostname: docker-registry-proxy
+    image: rpardini/docker-registry-proxy:0.6.5 # Check and make sure this is the last released version
+    environment:
+      - CACHE_MAX_SIZE=12G # Adjust this to your needs as it will be the maximum size of the cache
+      - ENABLE_MANIFEST_CACHE=true # Enable manifest caching      
+    volumes:
+      - docker_mirror_cache:/docker_mirror_cache # This will be up to CACHE_MAX_SIZE big
+      - docker_mirror_certs:/ca
+    ports:
+      - 0.0.0.0:3128:3128 # 0.0.0.0 binds to all interfaces
+    networks:
+      - kind
+    restart: always
+networks:
+  kind:
+    external: true # Use the existing kind network
+volumes:
+  docker_mirror_cache: {}
+  docker_mirror_certs: {}

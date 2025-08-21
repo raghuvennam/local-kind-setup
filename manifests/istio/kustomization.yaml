@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - strict-mtls.yaml
+  - sidecar.yaml
+  - default-auth-policy.yaml
+  - local-gateways.yaml
+  - admin-apps-config.yaml
+  - ../app-config
