@@ -37,6 +37,8 @@ cp ${ISTIO_FOLDER}/samples/addons/grafana.yaml ${ISTIO_FOLDER}/samples/addons/gr
 # Patch only the Deployment, not all resources
 # Add GF_SERVER_ROOT_URL and GF_SERVER_SERVE_FROM_SUB_PATH for subpath support
 yq -i '(. | select(.kind == "Deployment") | .spec.template.spec.containers[] | select(.name == "grafana") | .env) |= ((. // []) + [{"name":"GF_SERVER_ROOT_URL","value":"https://admin.internal/grafana/"},{"name":"GF_SERVER_SERVE_FROM_SUB_PATH","value":"true"}])' ${ISTIO_FOLDER}/samples/addons/grafana.yaml
+# update the prometheus URL in the grafana config
+sed -i -e 's|url: http://prometheus:9090|url: http://prometheus:9090/prometheus/|g' ${ISTIO_FOLDER}/samples/addons/grafana.yaml
 # Apply the modified grafana config
 kubectl apply -f ${ISTIO_FOLDER}/samples/addons/grafana.yaml
 
